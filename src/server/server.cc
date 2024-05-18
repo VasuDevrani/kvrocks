@@ -1166,85 +1166,140 @@ void Server::GetInfo(const std::string &ns, const std::string &section, bool jso
   info->clear();
 
   std::ostringstream string_stream;
+  jsoncons::json json_output;
   bool all = section == "all";
   int section_cnt = 0;
 
   if (all || section == "server") {
     std::string server_info;
     GetServerInfo(&server_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << server_info;
+
+    if (json_format) {
+      json_output["server"] = server_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << server_info;
+    }
   }
 
   if (all || section == "clients") {
     std::string clients_info;
     GetClientsInfo(&clients_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << clients_info;
+
+    if (json_format) {
+      json_output["clients"] = clients_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << clients_info;
+    }
   }
 
   if (all || section == "memory") {
     std::string memory_info;
     GetMemoryInfo(&memory_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << memory_info;
+
+    if (json_format) {
+      json_output["memory"] = memory_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << memory_info;
+    }
   }
 
   if (all || section == "persistence") {
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << "# Persistence\r\n";
-    string_stream << "loading:" << is_loading_ << "\r\n";
-
     std::lock_guard<std::mutex> lg(db_job_mu_);
-    string_stream << "bgsave_in_progress:" << (is_bgsave_in_progress_ ? 1 : 0) << "\r\n";
-    string_stream << "last_bgsave_time:"
-                  << (last_bgsave_timestamp_secs_ == -1 ? start_time_secs_ : last_bgsave_timestamp_secs_) << "\r\n";
-    string_stream << "last_bgsave_status:" << last_bgsave_status_ << "\r\n";
-    string_stream << "last_bgsave_time_sec:" << last_bgsave_duration_secs_ << "\r\n";
+    if (json_format) {
+      jsoncons::json persistence;
+      persistence["loading"] = is_loading_;
+      persistence["bgsave_in_progress"] = is_bgsave_in_progress_ ? 1 : 0;
+      persistence["last_bgsave_time"] = last_bgsave_timestamp_secs_ == -1 ? start_time_secs_ : last_bgsave_timestamp_secs_;
+      persistence["last_bgsave_status"] = last_bgsave_status_;
+      persistence["last_bgsave_time_sec"] = last_bgsave_duration_secs_;
+      json_output["persistence"] = persistence;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << "# Persistence\r\n";
+      string_stream << "loading:" << is_loading_ << "\r\n";
+
+      string_stream << "bgsave_in_progress:" << (is_bgsave_in_progress_ ? 1 : 0) << "\r\n";
+      string_stream << "last_bgsave_time:"
+                    << (last_bgsave_timestamp_secs_ == -1 ? start_time_secs_ : last_bgsave_timestamp_secs_) <<
+                    "\r\n";
+      string_stream << "last_bgsave_status:" << last_bgsave_status_ << "\r\n";
+      string_stream << "last_bgsave_time_sec:" << last_bgsave_duration_secs_ << "\r\n";
+    }
   }
 
   if (all || section == "stats") {
     std::string stats_info;
     GetStatsInfo(&stats_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << stats_info;
+
+    if (json_format) {
+      json_output["stats"] = stats_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << stats_info;
+    }
   }
 
   // In replication section, we access DB, so we can't do that when loading
   if (!is_loading_ && (all || section == "replication")) {
     std::string replication_info;
     GetReplicationInfo(&replication_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << replication_info;
+
+    if (json_format) {
+      json_output["replication"] = replication_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << replication_info;
+    }
   }
 
   if (all || section == "cpu") {
     rusage self_ru;
     getrusage(RUSAGE_SELF, &self_ru);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << "# CPU\r\n";
-    string_stream << "used_cpu_sys:"
-                  << static_cast<float>(self_ru.ru_stime.tv_sec) +
-                         static_cast<float>(self_ru.ru_stime.tv_usec / 1000000)
-                  << "\r\n";
-    string_stream << "used_cpu_user:"
-                  << static_cast<float>(self_ru.ru_utime.tv_sec) +
-                         static_cast<float>(self_ru.ru_utime.tv_usec / 1000000)
-                  << "\r\n";
+
+    if (json_format) {
+      json_output["CPU"]["used_cpu_sys"] =
+          static_cast<float>(self_ru.ru_stime.tv_sec) + static_cast<float>(self_ru.ru_stime.tv_usec / 1000000);
+      json_output["CPU"]["used_cpu_user"] =
+          static_cast<float>(self_ru.ru_utime.tv_sec) + static_cast<float>(self_ru.ru_utime.tv_usec / 1000000);
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << "# CPU\r\n";
+      string_stream << "used_cpu_sys:"
+                    << static_cast<float>(self_ru.ru_stime.tv_sec) +
+                           static_cast<float>(self_ru.ru_stime.tv_usec / 1000000)
+                    << "\r\n";
+      string_stream << "used_cpu_user:"
+                    << static_cast<float>(self_ru.ru_utime.tv_sec) +
+                           static_cast<float>(self_ru.ru_utime.tv_usec / 1000000)
+                    << "\r\n";
+    }
   }
 
   if (all || section == "commandstats") {
     std::string commands_stats_info;
     GetCommandsStatsInfo(&commands_stats_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << commands_stats_info;
+
+    if (json_format) {
+      json_output["commandstats"] = commands_stats_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << commands_stats_info;
+    }
   }
 
   if (all || section == "cluster") {
     std::string cluster_info;
     GetClusterInfo(&cluster_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << cluster_info;
+
+    if (json_format) {
+      json_output["cluster"] = cluster_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << cluster_info;
+    }
   }
 
   // In keyspace section, we access DB, so we can't do that when loading
@@ -1262,26 +1317,49 @@ void Server::GetInfo(const std::string &ns, const std::string &section, bool jso
     if (last_scan_time == 0) {
       string_stream << "# WARN: DBSIZE SCAN never performed yet\r\n";
     } else {
-      string_stream << "# Last DBSIZE SCAN time: " << std::put_time(&last_scan_tm, "%a %b %e %H:%M:%S %Y") << "\r\n";
+      if (json_format) {
+        json_output["Keyspace"]["Last DBSIZE SCAN time"] = std::put_time(&last_scan_tm, "%a %b %e %H:%M:%S %Y");
+      } else {
+        string_stream << "# Last DBSIZE SCAN time: " << std::put_time(&last_scan_tm, "%a %b %e %H:%M:%S %Y") <<
+        "\r\n";
+      }
     }
-    string_stream << "db0:keys=" << stats.n_key << ",expires=" << stats.n_expires << ",avg_ttl=" << stats.avg_ttl
-                  << ",expired=" << stats.n_expired << "\r\n";
-    string_stream << "sequence:" << storage->GetDB()->GetLatestSequenceNumber() << "\r\n";
-    string_stream << "used_db_size:" << storage->GetTotalSize(ns) << "\r\n";
-    string_stream << "max_db_size:" << config_->max_db_size * GiB << "\r\n";
-    double used_percent = config_->max_db_size ? static_cast<double>(storage->GetTotalSize() * 100) /
-                                                     static_cast<double>(config_->max_db_size * GiB)
-                                               : 0;
-    string_stream << "used_percent: " << used_percent << "%\r\n";
+
+    double used_percent = config_->max_db_size
+        ? static_cast<double>(storage->GetTotalSize() * 100) / static_cast<double>(config_->max_db_size * GiB) : 0;
+    if (json_format) {
+      json_output["Keyspace"]["db0"]["keys"] = stats.n_key;
+      json_output["Keyspace"]["db0"]["expires"] = stats.n_expires;
+      json_output["Keyspace"]["db0"]["avg_ttl"] = stats.avg_ttl;
+      json_output["Keyspace"]["db0"]["expired"] = stats.n_expired;
+      json_output["Keyspace"]["sequence"] = storage->GetDB()->GetLatestSequenceNumber();
+      json_output["Keyspace"]["used_db_size"] = storage->GetTotalSize(ns);
+      json_output["Keyspace"]["max_db_size"] = config_->max_db_size * GiB;
+      json_output["Keyspace"]["used_percent"] = used_percent;
+    } else {
+      string_stream << "db0:keys=" << stats.n_key << ",expires=" << stats.n_expires << ",avg_ttl=" << stats.avg_ttl
+                    << ",expired=" << stats.n_expired << "\r\n";
+      string_stream << "sequence:" << storage->GetDB()->GetLatestSequenceNumber() << "\r\n";
+      string_stream << "used_db_size:" << storage->GetTotalSize(ns) << "\r\n";
+      string_stream << "max_db_size:" << config_->max_db_size * GiB << "\r\n";
+      string_stream << "used_percent: " << used_percent << "%\r\n";
+    }
 
     struct statvfs stat;
     if (statvfs(config_->db_dir.c_str(), &stat) == 0) {
       auto disk_capacity = stat.f_blocks * stat.f_frsize;
       auto used_disk_size = (stat.f_blocks - stat.f_bavail) * stat.f_frsize;
-      string_stream << "disk_capacity:" << disk_capacity << "\r\n";
-      string_stream << "used_disk_size:" << used_disk_size << "\r\n";
       double used_disk_percent = static_cast<double>(used_disk_size * 100) / static_cast<double>(disk_capacity);
-      string_stream << "used_disk_percent: " << used_disk_percent << "%\r\n";
+
+      if (json_format) {
+        json_output["Keyspace"]["disk_capacity"] = disk_capacity;
+        json_output["Keyspace"]["used_disk_size"] = used_disk_size;
+        json_output["Keyspace"]["disk_capacity"] = used_disk_percent;
+      } else {
+        string_stream << "disk_capacity:" << disk_capacity << "\r\n";
+        string_stream << "used_disk_size:" << used_disk_size << "\r\n";
+        string_stream << "used_disk_percent: " << used_disk_percent << "%\r\n";
+      }
     }
   }
 
@@ -1289,41 +1367,18 @@ void Server::GetInfo(const std::string &ns, const std::string &section, bool jso
   if (!is_loading_ && (all || section == "rocksdb")) {
     std::string rocksdb_info;
     GetRocksDBInfo(&rocksdb_info);
-    if (section_cnt++) string_stream << "\r\n";
-    string_stream << rocksdb_info;
+
+    if (json_format) {
+      json_output["rocksdb"] = rocksdb_info;
+    } else {
+      if (section_cnt++) string_stream << "\r\n";
+      string_stream << rocksdb_info;
+    }
   }
 
   if (json_format) {
-    //parse the string_stream string to json
-    jsoncons::json obj;
-    std::istringstream iss(string_stream.str());
-    std::string line;
-    std::string current_section;
-
-    while (std::getline(iss, line)) {
-      if (!line.empty() && line.back() == '\r') {
-        line.pop_back();
-      }
-
-      if (line.empty()) continue;
-
-      if (line[0] == '#') {
-        current_section = line.substr(2, line.length() - 4);
-        if (!current_section.empty()) {
-          obj[current_section] = jsoncons::json::object();
-        }
-      } else {
-        auto pos = line.find(':');
-        if (pos != std::string::npos) {
-          std::string key = line.substr(0, pos);
-          std::string value = line.substr(pos + 1);
-          obj[current_section][key] = value;
-        }
-      }
-    }
-
-    *info = obj.as_string();
-
+    // jsoncons::json json_output = jsoncons::json::parse(string_stream.str());
+    *info = json_output.as_string();
   } else {
     *info = string_stream.str();
   }
