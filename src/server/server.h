@@ -239,7 +239,8 @@ class Server {
   void GetRoleInfo(std::string *info);
   void GetCommandsStatsInfo(std::string *info);
   void GetClusterInfo(std::string *info);
-  void GetInfo(const std::string &ns, const std::string &section, std::string *info);
+  // addtional json_format parameter
+  void GetInfo(const std::string &ns, const std::string &section, bool json_format, std::string *info);
   std::string GetRocksDBStatsJson() const;
   ReplState GetReplicationState();
 

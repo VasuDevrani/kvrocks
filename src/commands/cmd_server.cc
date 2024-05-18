@@ -249,13 +249,33 @@ class CommandInfo : public Commander {
  public:
   Status Execute(Server *srv, Connection *conn, std::string *output) override {
     std::string section = "all";
-    if (args_.size() == 2) {
-      section = util::ToLower(args_[1]);
-    } else if (args_.size() > 2) {
-      return {Status::RedisParseErr, errInvalidSyntax};
-    }
+    bool json_format = false;
     std::string info;
-    srv->GetInfo(conn->GetNamespace(), section, &info);
+
+    //logic to accept different command formats
+    if (args_.size() >= 2) {
+      section = util::ToLower(args_[1]);
+
+      if (args_.size() >= 3) {
+        std::string format_arg = util::ToLower(args_[2]);
+        if (format_arg == "format") {
+          if (args_.size() == 4) {
+            std::string format = util::ToLower(args_[3]);
+            if (format == "json") {
+              json_format = true;
+            } else if (format != "txt") {
+              return {Status::RedisParseErr, errInvalidSyntax};
+            }
+          } else {
+            return {Status::RedisParseErr, errInvalidSyntax};
+          }
+        } else {
+          return {Status::RedisParseErr, errInvalidSyntax};
+        }
+      }
+    }
+
+    srv->GetInfo(conn->GetNamespace(), section, json_format, &info);
     *output = conn->VerbatimString("txt", info);
     return Status::OK();
   }

@@ -1162,7 +1162,7 @@ void Server::GetClusterInfo(std::string *info) {
 // DB is closed and the pointer is invalid. Server may crash if we access DB during loading.
 // If you add new fields which access DB into INFO command output, make sure
 // this section can't be shown when loading(i.e. !is_loading_).
-void Server::GetInfo(const std::string &ns, const std::string &section, std::string *info) {
+void Server::GetInfo(const std::string &ns, const std::string &section, bool json_format, std::string *info) {
   info->clear();
 
   std::ostringstream string_stream;
@@ -1293,7 +1293,40 @@ void Server::GetInfo(const std::string &ns, const std::string &section, std::str
     string_stream << rocksdb_info;
   }
 
-  *info = string_stream.str();
+  if (json_format) {
+    //parse the string_stream string to json
+    jsoncons::json obj;
+    std::istringstream iss(string_stream.str());
+    std::string line;
+    std::string current_section;
+
+    while (std::getline(iss, line)) {
+      if (!line.empty() && line.back() == '\r') {
+        line.pop_back();
+      }
+
+      if (line.empty()) continue;
+
+      if (line[0] == '#') {
+        current_section = line.substr(2, line.length() - 4);
+        if (!current_section.empty()) {
+          obj[current_section] = jsoncons::json::object();
+        }
+      } else {
+        auto pos = line.find(':');
+        if (pos != std::string::npos) {
+          std::string key = line.substr(0, pos);
+          std::string value = line.substr(pos + 1);
+          obj[current_section][key] = value;
+        }
+      }
+    }
+
+    *info = obj.as_string();
+
+  } else {
+    *info = string_stream.str();
+  }
 }
 
 std::string Server::GetRocksDBStatsJson() const {
